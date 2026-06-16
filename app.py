@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 from datetime import date
-
+# BY Philippe Adduard
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Workout Tracker", layout="centered")
 st.title("Workout Tracker")
