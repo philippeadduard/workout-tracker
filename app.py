@@ -13,6 +13,10 @@ ocultar_menu = """
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+    /* Ataque agresivo al eslabón en cualquier tipo de título */
+    h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
+        display: none !important;
+    }
     </style>
     """
 st.markdown(ocultar_menu, unsafe_allow_html=True)
