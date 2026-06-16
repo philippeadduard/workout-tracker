@@ -6,15 +6,25 @@ from datetime import date
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Workout Tracker", layout="centered")
 st.title("Workout Tracker")
+
+# --- OCULTAR INTERFAZ NATIVA DE STREAMLIT ---
+ocultar_menu = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+    """
+st.markdown(ocultar_menu, unsafe_allow_html=True)
+
 ARCHIVO_CSV = 'historial.csv'
 
 # --- FUNCIONES OPTIMIZADAS ---
 
 def cargar_datos():
     """
-    Intenta leer la base de datos CSV. Si el archivo no existe (ej. primera vez 
-    que se corre la app), crea un DataFrame vacío, genera el archivo físico 
-    y lo retorna para evitar errores de compilación.
+    Intenta leer la base de datos CSV. Si el archivo no existe,
+    crea un DataFrame vacío, genera el archivo físico y lo retorna.
     """
     try:
         return pd.read_csv(ARCHIVO_CSV)
@@ -25,20 +35,17 @@ def cargar_datos():
 
 def guardar_datos(dataframe):
     """
-    Sobrescribe el archivo CSV por completo con la tabla actual. 
-    Se utiliza al eliminar un registro o modificar datos masivamente en la tabla.
+    Sobrescribe el archivo CSV por completo con la tabla actual.
     """
     dataframe.to_csv(ARCHIVO_CSV, index=False)
 
 def calcular_1rm(peso, reps):
     """
-    Aplica la fórmula matemática de Brzycki para estimar la 
-    Repetición Máxima (1RM) basada en el peso levantado y las repeticiones logradas.
+    Aplica la fórmula matemática de Brzycki para estimar la 1RM.
     """
     return peso * (36 / (37 - reps))
 
 # --- INICIALIZACIÓN UNIFICADA ---
-# Dato duro: Leemos los datos una única vez en toda la ejecución.
 df = cargar_datos()
 lista_ejercicios = sorted(df['ejercicio'].unique().tolist()) if not df.empty else []
 
@@ -56,7 +63,6 @@ with st.container(border=True):
         else:
             ej_a_borrar = st.selectbox("Selecciona el ejercicio a purgar:", lista_ejercicios)
             if st.button("❌ Confirmar Eliminación", use_container_width=True, type="primary"):
-                # Filtramos dejando todos MENOS el que queremos borrar
                 df_limpio = df[df["ejercicio"] != ej_a_borrar]
                 guardar_datos(df_limpio)
                 st.success(f"Ejercicio '{ej_a_borrar}' eliminado por completo.")
@@ -64,7 +70,6 @@ with st.container(border=True):
 
     # MODO REGISTRO
     else:
-        # Asignación dinámica: si elige crear nuevo, muestra input; si no, toma la opción seleccionada
         ejercicio_final = st.text_input("Escribe el nombre del nuevo ejercicio:") if ejercicio_seleccionado == "➕ Agregar nuevo" else ejercicio_seleccionado
         
         col1, col2, col3 = st.columns(3)
@@ -84,7 +89,6 @@ with st.container(border=True):
                     'peso': peso, 
                     'reps': reps
                 }])
-                # Se anexa (mode='a') la nueva línea al CSV sin borrar lo anterior
                 nueva_fila.to_csv(ARCHIVO_CSV, mode='a', header=False, index=False)
                 st.success(f"Serie de {nombre_ejercicio} registrada.")
                 st.rerun()
@@ -116,8 +120,8 @@ if not df.empty:
         st.info(f"**1RM Estimado Actual: {rm_estimado:.1f} kg**")
         
     st.divider()
-    st.subheader("Historial")
-    st.caption("visualiza y edita tu historial.")
+    st.subheader("Modificar Historial")
+    st.caption("Haz doble clic para editar celdas. En PC selecciona la fila y pulsa Suprimir; en celular marca la casilla izquierda de la fila y usa la papelera superior. Guarda para aplicar.")
     
     df_editado = st.data_editor(df, num_rows="dynamic", use_container_width=True)
     
