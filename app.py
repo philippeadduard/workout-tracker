@@ -1,49 +1,71 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
-import os
 from datetime import date
 
-# Configuración
+# --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Workout Tracker", layout="centered")
 st.title("Workout Tracker")
-
-# Motor de Base de Datos Local (CSV Estándar)
 ARCHIVO_CSV = 'historial.csv'
 
-if not os.path.exists(ARCHIVO_CSV):
-    df_vacio = pd.DataFrame(columns=['fecha', 'ejercicio', 'peso', 'reps'])
-    df_vacio.to_csv(ARCHIVO_CSV, index=False)
+# --- FUNCIONES OPTIMIZADAS ---
 
-# Memoria dinámica de ejercicios (CORREGIDO: Ahora lee estrictamente del CSV)
-df_actual = pd.read_csv(ARCHIVO_CSV)
-lista_ejercicios = sorted(df_actual['ejercicio'].unique().tolist()) if not df_actual.empty else []
+def cargar_datos():
+    """
+    Intenta leer la base de datos CSV. Si el archivo no existe (ej. primera vez 
+    que se corre la app), crea un DataFrame vacío, genera el archivo físico 
+    y lo retorna para evitar errores de compilación.
+    """
+    try:
+        return pd.read_csv(ARCHIVO_CSV)
+    except FileNotFoundError:
+        df_vacio = pd.DataFrame(columns=['fecha', 'ejercicio', 'peso', 'reps'])
+        df_vacio.to_csv(ARCHIVO_CSV, index=False)
+        return df_vacio
 
-# --- INTERFAZ EN TIEMPO REAL ---
+def guardar_datos(dataframe):
+    """
+    Sobrescribe el archivo CSV por completo con la tabla actual. 
+    Se utiliza al eliminar un registro o modificar datos masivamente en la tabla.
+    """
+    dataframe.to_csv(ARCHIVO_CSV, index=False)
+
+def calcular_1rm(peso, reps):
+    """
+    Aplica la fórmula matemática de Brzycki para estimar la 
+    Repetición Máxima (1RM) basada en el peso levantado y las repeticiones logradas.
+    """
+    return peso * (36 / (37 - reps))
+
+# --- INICIALIZACIÓN UNIFICADA ---
+# Dato duro: Leemos los datos una única vez en toda la ejecución.
+df = cargar_datos()
+lista_ejercicios = sorted(df['ejercicio'].unique().tolist()) if not df.empty else []
+
+# --- 1. REGISTRO Y GESTIÓN EN TIEMPO REAL ---
 with st.container(border=True):
     opciones_menu = lista_ejercicios + ["➕ Agregar nuevo", "🗑️ Eliminar un ejercicio"]
     ejercicio_seleccionado = st.selectbox("Ejercicio", opciones_menu)
     
-    # 1. MODO ELIMINAR EJERCICIO
+    # MODO ELIMINACIÓN
     if ejercicio_seleccionado == "🗑️ Eliminar un ejercicio":
         st.warning("⚠️ Al eliminar un ejercicio, se borrará todo su historial asociado y desaparecerá de la lista.")
-        if len(lista_ejercicios) == 0:
+        
+        if not lista_ejercicios:
             st.info("No hay ejercicios registrados en la base de datos.")
         else:
             ej_a_borrar = st.selectbox("Selecciona el ejercicio a purgar:", lista_ejercicios)
             if st.button("❌ Confirmar Eliminación", use_container_width=True, type="primary"):
-                df_limpio = df_actual[df_actual["ejercicio"] != ej_a_borrar]
-                df_limpio.to_csv(ARCHIVO_CSV, index=False)
+                # Filtramos dejando todos MENOS el que queremos borrar
+                df_limpio = df[df["ejercicio"] != ej_a_borrar]
+                guardar_datos(df_limpio)
                 st.success(f"Ejercicio '{ej_a_borrar}' eliminado por completo.")
                 st.rerun()
 
-    # 2. MODO REGISTRO (Agregar nuevo o seleccionar existente)
+    # MODO REGISTRO
     else:
-        ejercicio_final = ""
-        if ejercicio_seleccionado == "➕ Agregar nuevo":
-            ejercicio_final = st.text_input("Escribe el nombre del nuevo ejercicio:")
-        else:
-            ejercicio_final = ejercicio_seleccionado
+        # Asignación dinámica: si elige crear nuevo, muestra input; si no, toma la opción seleccionada
+        ejercicio_final = st.text_input("Escribe el nombre del nuevo ejercicio:") if ejercicio_seleccionado == "➕ Agregar nuevo" else ejercicio_seleccionado
         
         col1, col2, col3 = st.columns(3)
         fecha_input = col1.date_input("Fecha", value=date.today(), format="DD/MM/YYYY")
@@ -53,24 +75,23 @@ with st.container(border=True):
         if st.button("Guardar Serie", use_container_width=True, type="primary"):
             nombre_ejercicio = ejercicio_final.strip().title()
             
-            if nombre_ejercicio == "":
+            if not nombre_ejercicio:
                 st.error("Por favor, escribe un nombre válido para el ejercicio.")
             else:
-                nueva_fila = pd.DataFrame({
-                    'fecha': [fecha_input.strftime('%Y-%m-%d')], 
-                    'ejercicio': [nombre_ejercicio], 
-                    'peso': [peso], 
-                    'reps': [reps]
-                })
+                nueva_fila = pd.DataFrame([{
+                    'fecha': fecha_input.strftime('%Y-%m-%d'), 
+                    'ejercicio': nombre_ejercicio, 
+                    'peso': peso, 
+                    'reps': reps
+                }])
+                # Se anexa (mode='a') la nueva línea al CSV sin borrar lo anterior
                 nueva_fila.to_csv(ARCHIVO_CSV, mode='a', header=False, index=False)
                 st.success(f"Serie de {nombre_ejercicio} registrada.")
                 st.rerun()
 
 st.divider()
 
-# Extracción de Datos para Gráficos y Tabla
-df = pd.read_csv(ARCHIVO_CSV)
-
+# --- 2. ANÁLISIS DE PROGRESO Y EDICIÓN ---
 if not df.empty:
     st.subheader("Análisis de Progreso")
     ejercicio_filtro = st.selectbox("Ver progreso de:", df['ejercicio'].unique())
@@ -91,17 +112,17 @@ if not df.empty:
         st.altair_chart(grafico, use_container_width=True)
         
         mejor_serie = df_filtrado.loc[df_filtrado['peso'].idxmax()]
-        rm_estimado = mejor_serie['peso'] * (36 / (37 - mejor_serie['reps']))
+        rm_estimado = calcular_1rm(mejor_serie['peso'], mejor_serie['reps'])
         st.info(f"**1RM Estimado Actual: {rm_estimado:.1f} kg**")
         
     st.divider()
-    st.subheader("Modificar Historial")
-    st.caption("Haz doble clic para editar celdas. En PC selecciona la fila y pulsa Suprimir; en celular marca la casilla izquierda de la fila y usa la papelera superior. Guarda para aplicar.")
+    st.subheader("Historial")
+    st.caption("visualiza y edita tu historial.")
     
     df_editado = st.data_editor(df, num_rows="dynamic", use_container_width=True)
     
     if st.button("Guardar Cambios de la Tabla", use_container_width=True):
-        df_editado.to_csv(ARCHIVO_CSV, index=False)
+        guardar_datos(df_editado)
         st.success("Historial actualizado correctamente.")
         st.rerun()
 
