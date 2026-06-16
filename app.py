@@ -14,6 +14,10 @@ ocultar_menu = """
     header {display: none !important;}
     footer {display: none !important;}
     h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {display: none !important;}
+    
+    /* Atacar la marca de agua inyectada por Streamlit Cloud */
+    [data-testid="stViewerBadge"] {display: none !important;}
+    div[class^="viewerBadge"] {display: none !important;}
     </style>
     """
 st.markdown(ocultar_menu, unsafe_allow_html=True)
