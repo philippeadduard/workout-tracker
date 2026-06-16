@@ -125,7 +125,7 @@ if not df.empty:
         
     st.divider()
     st.subheader("Modificar Historial")
-    st.caption("Haz doble clic para editar celdas. En PC selecciona la fila y pulsa Suprimir; en celular marca la casilla izquierda de la fila y usa la papelera superior. Guarda para aplicar.")
+    st.caption("Visualiza y modifica tu historial de entrenamiento.")
     
     df_editado = st.data_editor(df, num_rows="dynamic", use_container_width=True)
     
